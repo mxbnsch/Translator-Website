@@ -40,15 +40,24 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
   incrementDownloadUses(token);
 
-  /**
-   * In production, you would fetch the actual file from storage (e.g., Vercel Blob, S3).
-   *
-   * Example:
-   *   const fileBuffer = await fetch(storageUrl).then(r => r.arrayBuffer());
-   *   return new NextResponse(fileBuffer, { headers: { ... } });
-   *
-   * For now, we return a placeholder response showing the download would work.
-   */
+  const fileUrl = book.files?.[download.format];
+  if (!fileUrl) {
+    return NextResponse.json(
+      { error: "File not available for this format" },
+      { status: 404 }
+    );
+  }
+
+  const fileResponse = await fetch(fileUrl);
+  if (!fileResponse.ok) {
+    return NextResponse.json(
+      { error: "Failed to retrieve file" },
+      { status: 500 }
+    );
+  }
+
+  const fileBuffer = await fileResponse.arrayBuffer();
+
   const contentType =
     download.format === "epub"
       ? "application/epub+zip"
@@ -56,9 +65,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
   const fileName = `${book.title.replace(/[^a-zA-Z0-9]/g, "_")}_${book.sourceLanguage}_${book.targetLanguage}.${download.format}`;
 
-  const placeholderContent = `This is a placeholder for: ${book.title} (${download.format.toUpperCase()})\n\nIn production, this would be the actual ${download.format.toUpperCase()} file.\n\nBook: ${book.title}\nAuthor: ${book.author}\nLanguages: ${book.sourceLanguage} — ${book.targetLanguage}\nFormat: ${download.format.toUpperCase()}\n`;
-
-  return new NextResponse(placeholderContent, {
+  return new NextResponse(fileBuffer, {
     headers: {
       "Content-Type": contentType,
       "Content-Disposition": `attachment; filename="${fileName}"`,
